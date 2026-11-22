@@ -633,7 +633,8 @@ var CHAMP_GENS = {
 function profForTier(t){
   if(t === "champ") return CHAMP_GENS[CHAMP_KEY];
   if(t === "master") return CHAMP_GENS[MASTER_KEY];
-  if(t === "medium") return CHAMP_GENS[MEDIUM_KEY]; // v35: MEDIUM seats the league #3 (owner, 2026-11-20) — DIFF.medium below is retained only as a harness stand-in
+  if(t === "medium"){ var dm = DIFF.easy; return { label:t, eMul:dm.eMul, think:dm.think, react:dm.react, brain:dm.brain, spellBar:dm.spellBar, saveFor:dm.saveFor, F:{gauntlet:false, prince:false, zerkSwarm:false, openHold:false, freezeDisc:false} }; } // batch-5.2m MEDIUM = THE CURRENT EASY BOT (owner ruling, 2026-11-22): the 10s cadence throttle is rejected and removed — Medium seats exactly the brain-0 heuristic profile Easy has today (no net, no threat scan, no defensive answers; drops its first affordable non-spell card at a random back lane). DIFF.medium and the league profiles remain in the file, unrouted for this tier.
+  if(t === "easy"){ var de = DIFF.easy; return { label:t, eMul:de.eMul, think:de.think, react:de.react, brain:de.brain, spellBar:de.spellBar, saveFor:de.saveFor, playGap:2.0, F:{gauntlet:false, prince:false, zerkSwarm:false, openHold:false, freezeDisc:false} }; } // batch-5.2m EASY PLAY DELAY (owner, 2026-11-22): Easy keeps its brain-0 script unchanged — drops stay where the script puts them (the deeper-drop nudge is removed) — and gains a 2.0s minimum delay between card plays (playGap, enforced at the top of the brain-0 block). No net is seated.
   var d = DIFF[t] || DIFF.hard;
   return { label:t, eMul:d.eMul, think:d.think, react:d.react, brain:d.brain, spellBar:d.spellBar, saveFor:d.saveFor, F:{gauntlet:false, prince:false, zerkSwarm:false, openHold:false, freezeDisc:false} };
 }
@@ -1916,6 +1917,7 @@ function aiBrain(dt, side, prof){
   function seenK(k){ return !!mem.seen[k] && (mem.seenT == null || mem.seenT[k] == null || (S.elapsed - mem.seenT[k]) >= REACT_TICKS * SIM_H); } // batch-5: a foe card counts as SEEN only once its first play is REACT_TICKS old — every mem.seen read in this brain goes through here
   function seenCountK(){ var n2 = 0; for(var kk in mem.seen){ if(seenK(kk)) n2++; } return n2; }
   if(brain===0){ /* EASY stays bad on purpose — the beginner tier (owner's calibration) */
+    if(D.playGap){ var pgLog = S.inputLog || [], pgN = pgLog.length; if(pgN !== (mem._pgN || 0)){ for(var pgI = (mem._pgN || 0); pgI < pgN; pgI++){ if(pgLog[pgI] && pgLog[pgI].side === side) mem._pgT = S.elapsed; } mem._pgN = pgN; } if(mem._pgT !== undefined && S.elapsed - mem._pgT < D.playGap) return; } // batch-5.2m PLAY DELAY: a profile carrying playGap (Easy only) may not play again until playGap seconds of game time have passed since its last committed play — the clock is stamped from S.inputLog, which snapState/restoreState copies consistently, so the floor measures real plays only
     if(sRand()<0.4) return;
     var i0 = afford(function(k,c){ return !c.spell; });
     if(i0>=0) PC(i0, sRand()<0.5?118:422, 200+sRand()*30);
@@ -2604,7 +2606,7 @@ function fling(att, v, power){
 }
 function hitShove(u, v){
   // batch-4 (owner weight law): a HEAVY HITTER's landed blow physically
-  // shoves the victim — the heavy-and-hard-hitting class (mass 7+ and
+  // shoves the victim — the heavy-and-hard-hitting class (CR mass 4+ and
   // 450+ damage per hit: Mini P.E.K.K.A, P.E.K.K.A) knocks even a Giant
   // back a few px per landed hit, strictly mass-scaled on the fling's
   // own pow(1/mVictim, 0.85) law: ~5.8px per hit on a Giant, more on
@@ -2664,7 +2666,8 @@ function elixirRate(){
   if(S.t <= 60) return 1/1.125;
   return 1/2.25;
 }
-var MASS = { skeletons:1, goblins:1, speargobs:1, archers:2, bomber:2, musketeer:3, wizard:3, berserker:3, babydrag:4, knight:4, valkyrie:4, miner:4, hog:5, prince:6, minipekka:7, giant:9, pekka:10 }; // v37 (owner steer I): troop weight, CR-consistent — swarm troops lightest, mid troops mid, tanks heaviest. Buildings and towers are not in the table: immovable (separation already skips buildings).
+var MASS = { skeletons:1, goblins:2, speargobs:1, archers:3, bomber:4, musketeer:5, wizard:5, berserker:2, babydrag:5, knight:6, valkyrie:5, miner:6, hog:4, prince:6, minipekka:4, giant:18, pekka:18 };
+var MP_GIANT_K53 = 0.5; // batch-5.3 REVISION (owner override, 2026-11-22 ~03:55): Mini P.E.K.K.A -> Giant pair-transfer factor, applied to the pair-law share in the H2 retained yield and the H4 friendly press. The owner rules the pair 'very similar in weight' — she stays on him and pushes — but at his measured rate (+8% marching gain, 'extremely slowly'); CR's raw 4-vs-18 squared share measured +16% with both channels live, so the pair share is scaled to his figure. The CR table above is unchanged (4 vs 18): this is a design override on one pair, not data. // batch-5.3 (owner, 2026-11-22): troop weight = the ACTUAL Clash Royale troop Mass values (hidden stat, CR game data via RoyaleTools per-card data, cross-checked vs howheavy.net): Skeletons 1, Spear Goblin 1, Goblin 2, Berserker 2, Archers 3, Bomber 4, Hog Rider 4, Mini P.E.K.K.A 4, Musketeer 5, Wizard 5, Valkyrie 5, Baby Dragon 5, Knight 6, Miner 6, Prince 6, Giant 18, P.E.K.K.A 18. Honest note: in CR data P.E.K.K.A TIES the Giant (18 = 18) and Mini P.E.K.K.A is far lighter (4) — her push on a Giant comes from the sustained-press transfer, not from out-weighing him. Buildings and towers are not in the table: immovable (separation already skips buildings).
 
 function step(dt){
   if(!S || S.over) return;
@@ -2961,7 +2964,7 @@ function step(dt){
           }
           if(tgt.isTower && u.key!=="mortar" && u.key!=="bombtower" && u.key!=="babydrag" && u.key!=="wizard" && u.key!=="bomber") damageTower(tgt, dmg, u.side); // v37: the traveling splash shots damage the tower on ARRIVAL (projs advance), not here
         } else if(tgt.isTower){ if(u.key==="xbow" || u.key==="cannon" || c.ranged){ if(!S.projs) S.projs = []; var bDistT = Math.hypot(tgt.x-u.x, tgt.y-u.y); var pkT = u.key==="cannon" ? "cball" : ((u.key==="musketeer" || u.key==="xbow") ? "bolt" : "arrow"); S.projs.push({key:pkT, side:u.side, fromKey:u.key, fromKey:u.key, x0:u.x, y0:(u.key==="cannon" ? u.y-14 : u.y-10), x1:tgt.x, y1:tgt.y, x:u.x, y:(u.key==="cannon" ? u.y-14 : u.y-10), h:0, t:0, dur: u.key==="cannon" ? Math.max(0.08, Math.min(0.7, bDistT/620)) : Math.max(0.05, Math.min(0.6, bDistT/780)), dmg:dmg, splash:0, tgt:tgt}); } else damageTower(tgt, dmg, u.side); } /* v37: ranged attacks on TOWERS travel too (the cannonball included) */
-        else { if(u.key==="xbow" || u.key==="cannon" || c.ranged){ if(!S.projs) S.projs = []; var bDistU = Math.hypot(tgt.x-u.x, tgt.y-u.y); var pkU = u.key==="cannon" ? "cball" : ((u.key==="musketeer" || u.key==="xbow") ? "bolt" : "arrow"); S.projs.push({key:pkU, side:u.side, fromKey:u.key, srcUid:u.uid, x0:u.x, y0:(u.key==="cannon" ? u.y-14 : u.y-10), x1:tgt.x, y1:tgt.y, x:u.x, y:(u.key==="cannon" ? u.y-14 : u.y-10), h:0, t:0, dur: u.key==="cannon" ? Math.max(0.08, Math.min(0.7, bDistU/620)) : Math.max(0.05, Math.min(0.6, bDistU/780)), dmg:dmg, splash:0, tgt:tgt}); } else { damage(tgt, dmg, u.side); tgt.lastHitBy = u.uid; tgt.lastHitT = S.tick; if(!c.knock && (MASS[u.key]||3) >= 7 && c.dmg >= 450 && !CARDS[tgt.key].building) hitShove(u, tgt); } /* v37 (owner items 9+10, steer B): EVERY single-target ranged attack now travels — archers/spear goblins loose arrows, the musketeer a bolt, and the CANNON a real cannonball that homes onto the unit it damages, so its direction is the target's direction on BOTH sides of the arena, by construction */ if(c.knock && u.key==="berserker" && fling(u, tgt, 190)){ S.floats.push({x:tgt.x, y:tgt.y-16, t:0.6, txt:["BONK!","WHAM!","BOING!"][Math.floor(sRand()*3)]}); } }
+        else { if(u.key==="xbow" || u.key==="cannon" || c.ranged){ if(!S.projs) S.projs = []; var bDistU = Math.hypot(tgt.x-u.x, tgt.y-u.y); var pkU = u.key==="cannon" ? "cball" : ((u.key==="musketeer" || u.key==="xbow") ? "bolt" : "arrow"); S.projs.push({key:pkU, side:u.side, fromKey:u.key, srcUid:u.uid, x0:u.x, y0:(u.key==="cannon" ? u.y-14 : u.y-10), x1:tgt.x, y1:tgt.y, x:u.x, y:(u.key==="cannon" ? u.y-14 : u.y-10), h:0, t:0, dur: u.key==="cannon" ? Math.max(0.08, Math.min(0.7, bDistU/620)) : Math.max(0.05, Math.min(0.6, bDistU/780)), dmg:dmg, splash:0, tgt:tgt}); } else { damage(tgt, dmg, u.side); tgt.lastHitBy = u.uid; tgt.lastHitT = S.tick; if(!c.knock && (MASS[u.key]||3) >= 4 && c.dmg >= 450 && !CARDS[tgt.key].building) hitShove(u, tgt); } /* v37 (owner items 9+10, steer B): EVERY single-target ranged attack now travels — archers/spear goblins loose arrows, the musketeer a bolt, and the CANNON a real cannonball that homes onto the unit it damages, so its direction is the target's direction on BOTH sides of the arena, by construction */ if(c.knock && u.key==="berserker" && fling(u, tgt, 190)){ S.floats.push({x:tgt.x, y:tgt.y-16, t:0.6, txt:["BONK!","WHAM!","BOING!"][Math.floor(sRand()*3)]}); } }
         /* v37: the instant ranged tracer is retired — every ranged attack (archers, musketeer, spear goblins, baby dragon, wizard, bomber, cannon, x-bow) now travels as a real S.projs projectile and lands on its target; the old fire-breath particles at the target would double-read. */
         /* SWING SYNC: the swing animation lasts the troop's real strike
            interval. For Berserker that's exactly his (enrage-scaled)
@@ -3008,12 +3011,12 @@ function step(dt){
         var sPushT = Math.min(14, sMin - sdd); // v37fix (owner): the pair's total correction, capped higher so weight reads in play — still a per-tick correction, never a shove-teleport
         var maS = MASS[sa.key] || 3, mbS = MASS[sb.key] || 3, mTotS = maS + mbS;
         var pushA = sPushT * (mbS / mTotS), pushB = sPushT * (maS / mTotS); // displacement follows weight: the heavier unit yields less ground (equal masses split evenly — the v36 behavior)
-        // batch-4 (owner weight tests T2/T3): FRIENDLY REAR PUSH scales with the FRONT unit's mass. Only the forward-aligned share of a same-side front unit's yield is scaled, by min(1, (4/mFront)^3): a Valkyrie (4) keeps the FULL push (Goblins behind her still shove her forward — the feel the owner likes), a Giant (9) keeps ~9% (Goblins behind him effectively stay behind him instead of speed-boosting him +19%), a P.E.K.K.A (10) ~6%. Whatever the front unit does not yield is handed to the rear unit, so the pair still separates by the same total — nobody overlaps longer; the light unit just does the yielding and flows around. Enemy pairs never scale (side check); their split above is untouched.
+        // batch-5.3 (owner push/weight pass, 2026-11-22): FRIENDLY REAR PUSH scales with the PAIR's CR masses. Only the forward-aligned share of a same-side front unit's yield is scaled, by the factor that makes the front's effective yield share mRear^2/(mRear^2+mFront^2) of the pair correction: an equal-mass rear pushes in full (P.E.K.K.A behind Giant, 18v18, factor 1.0), a Mini P.E.K.K.A (4) behind a Giant (18) keeps ~26% of her separation share as his yield, Skeletons (1) behind a Giant keep ~6% of a tiny share (a swarm still cannot bulldoze a tank), and Goblins (2) behind a Valkyrie (5) keep ~48% (the shove-the-Valkyrie feel survives). Whatever the front unit does not yield is handed to the rear unit, so the pair still separates by the same total. Supersedes the batch-4 front-only (4/mFront)^3 curve, which ignored the pusher's mass entirely — a Mini P.E.K.K.A and a Skeleton got the same yield treatment behind the same front unit. Enemy pairs never scale (side check); their split above is untouched.
         if(sa.side === sb.side){
           var puAx = -sdx/sdd, puAy = -sdy/sdd, pdA = puAx * Math.cos(sa.faceA||0) + puAy * Math.sin(sa.faceA||0);
-          if(pdA > 0){ var pfA = Math.min(1, Math.pow(4 / maS, 3)), plA = pushA * pdA * (1 - pfA); pushA -= plA; pushB += plA; }
+          if(pdA > 0){ var pfA = Math.min(1, mbS * mTotS / (maS * maS + mbS * mbS)) * ((sa.key === 'giant' && sb.key === 'minipekka') ? MP_GIANT_K53 : 1), plA = pushA * pdA * (1 - pfA); pushA -= plA; pushB += plA; }
           var puBx = sdx/sdd, puBy = sdy/sdd, pdB = puBx * Math.cos(sb.faceA||0) + puBy * Math.sin(sb.faceA||0);
-          if(pdB > 0){ var pfB = Math.min(1, Math.pow(4 / mbS, 3)), plB = pushB * pdB * (1 - pfB); pushB -= plB; pushA += plB; }
+          if(pdB > 0){ var pfB = Math.min(1, maS * mTotS / (maS * maS + mbS * mbS)) * ((sb.key === 'giant' && sa.key === 'minipekka') ? MP_GIANT_K53 : 1), plB = pushB * pdB * (1 - pfB); pushB -= plB; pushA += plB; }
         }
         // batch-5.1 (owner item 13): PLACEMENT-ALIGNED FRIENDLY PUSHING —
         // a friendly follower may push the unit ahead ONLY when it is
@@ -3061,6 +3064,40 @@ function step(dt){
           var spxB13 = -sdy / sdd, spyB13 = sdx / sdd, cB1 = 1e9, cB2 = 1e9, r1x = sb.x + spxB13 * 26, r1y = sb.y + spyB13 * 26, r2x = sb.x - spxB13 * 26, r2y = sb.y - spyB13 * 26;
           for(var ciB = 0; ciB < S.units.length; ciB++){ var coB = S.units[ciB]; if(coB === sa || coB === sb || coB.hp <= 0) continue; var cdB1 = Math.hypot(coB.x - r1x, coB.y - r1y), cdB2 = Math.hypot(coB.x - r2x, coB.y - r2y); if(cdB1 < cB1) cB1 = cdB1; if(cdB2 < cB2) cB2 = cdB2; }
           if(Math.abs(cB1 - cB2) > 6){ var sgB13 = cB1 > cB2 ? 1 : -1, slB13 = Math.min(0.7, Math.max(0.2, Math.hypot(sb._pvx || 0, sb._pvy || 0))) * sgB13; sb.x += spxB13 * slB13; sb.y += spyB13 * slB13; }
+        }
+        if(sa.side === sb.side){
+          /* batch-5.3 (owner push/weight pass, 2026-11-22): FRIENDLY SUSTAINED
+             PRESS — the friendly edition of the batch-5 enemy press below. A
+             follower in body contact whose intended step closes on the front
+             unit faster than the front unit steps away has BLOCKED advance;
+             the blocked part transfers to the pair at the pair mass share
+             mRear^2/(mRear^2+mFront^2) — both bodies shift along the pair
+             axis together, so a stuck follower's pressure moves the front
+             unit slowly instead of vanishing (the owner's rule: stuck behind
+             it and can't move around it, then it starts pushing it). This is
+             the channel that still works when the follower is offset and
+             boxed in — the 5.1 alignment gate zeroes its separation yield
+             (untouched above) and the shoulder slide has nowhere to go.
+             Capped like the enemy press (1.2px/tick); feeds disp like the
+             enemy press, and the displacement lock-break threshold is
+             weight-scaled, so a light follower's press never breaks a heavy
+             front unit's lock. */
+          var prA53 = ((sa._pvx || 0) * sdx + (sa._pvy || 0) * sdy) / sdd;
+          var prB53 = -(((sb._pvx || 0) * sdx + (sb._pvy || 0) * sdy) / sdd);
+          var blk53 = prA53 + prB53;
+          if(blk53 > 0.02 && prA53 > 0.02 && prB53 < 0.02){
+            var sh53 = Math.min(1.2, blk53 * (maS * maS) / (maS * maS + mbS * mbS) * ((sa.key === 'minipekka' && sb.key === 'giant') ? MP_GIANT_K53 : 1));
+            var shX53 = sdx / sdd * sh53, shY53 = sdy / sdd * sh53, fX53 = shX53, fY53 = shY53; // batch-5.3 REWORK H7 (owner weight ruling, 2026-11-22 ~06:40 — the H6 feed budget is REMOVED; pushing is by weight, full stop): the follower (here sa) spends its blocked advance in full along the pair axis, but a PLANTED front (here sb; recorded step ~0, braced in its engagement) yields to the press ONLY ALONG ITS OWN FACING — pressure pushes a braced unit into its engagement, never sideways off its spot, so a diagonally wedged follower can no longer ratchet a planted front laterally (the slot-widening shove / conveyor wander). Press magnitude is the unchanged mass pair-law share; marching fronts keep the full transfer.
+            if(Math.hypot(sb._pvx || 0, sb._pvy || 0) <= 0.05){ var fxA53 = Math.cos(sb.faceA || 0), fyA53 = Math.sin(sb.faceA || 0), pjA53 = shX53 * fxA53 + shY53 * fyA53; if(pjA53 <= 0){ fX53 = 0; fY53 = 0; } else { fX53 = fxA53 * pjA53; fY53 = fyA53 * pjA53; } }
+            sa.x += shX53; sa.y += shY53; sb.x += fX53; sb.y += fY53;
+            sa.dispX += shX53; sa.dispY += shY53; sb.dispX += fX53; sb.dispY += fY53;
+          } else if(blk53 > 0.02 && prB53 > 0.02 && prA53 < 0.02){
+            var sh53b = Math.min(1.2, blk53 * (mbS * mbS) / (maS * maS + mbS * mbS) * ((sb.key === 'minipekka' && sa.key === 'giant') ? MP_GIANT_K53 : 1));
+            var shX53b = -sdx / sdd * sh53b, shY53b = -sdy / sdd * sh53b, fX53b = shX53b, fY53b = shY53b; // REWORK H7 (see branch A): the follower (here sb) shifts in full; the planted front (here sa) yields only along its facing
+            if(Math.hypot(sa._pvx || 0, sa._pvy || 0) <= 0.05){ var fxB53 = Math.cos(sa.faceA || 0), fyB53 = Math.sin(sa.faceA || 0), pjB53 = shX53b * fxB53 + shY53b * fyB53; if(pjB53 <= 0){ fX53b = 0; fY53b = 0; } else { fX53b = fxB53 * pjB53; fY53b = fyB53 * pjB53; } }
+            sa.x += fX53b; sa.y += fY53b; sb.x += shX53b; sb.y += shY53b;
+            sa.dispX += fX53b; sa.dispY += fY53b; sb.dispX += shX53b; sb.dispY += shY53b;
+          }
         }
         if(sa.side !== sb.side){
           /* batch-5 (owner physics, 2026-11-21): SUSTAINED WALKING PUSH
