@@ -26,7 +26,10 @@
   color-scheme: dark;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;overscroll-behavior:none;touch-action:none} /* batch-5.1 (owner items 2/14): the browser never owns a gesture on this page — no browser pinch-zoom, no pan, no edge swipe-back; the in-page pinch detector is the only pinch handler (fullscreen toggle). The deck builder keeps its own pan-y below: the intersection stops at that scroller, so deck scrolling survives while pinch-zoom stays impossible there too. */
+html,body{margin:0;padding:0;overscroll-behavior:none;touch-action:pan-y} /* batch-5.1.1 (owner field report 2026-11-22 ~01:47: "Scroll is completely broken on main page"): batch-5.1 put touch-action:none on this rule, and since the lobby's scroller IS the page, that killed every touch scroll outside battle. The lockdown is now scoped to battle: off-battle the page pans vertically (pan-y — pinch-zoom is still impossible, and a pan is a one-finger gesture, so the in-page pinch detector below still receives every two-finger pinch itself); body.battling restores none the moment a match starts, and the battle surfaces keep their own none. The deck builder keeps its own pan-y below: the intersection stops at that scroller. */
+body.battling{touch-action:none} /* batch-5.1.1: while a match is live the browser owns no gesture on the page at all — no scroll, no pan, no zoom (the battle surfaces carry their own none too) */
+body.matchOver #handRow,body.matchOver #elixirRow{display:none} /* batch-5.1.1 (owner, 2026-11-22 ~01:50): "Get rid of the cards on the screen on this menu" — on the match-end screen the hand and the elixir bar are hidden entirely; the result line and the report panel stay. endMatch sets the class, newMatch removes it, so the next battle rebuilds both as always. */
+input,textarea,select{touch-action:pan-y} /* batch-5.1.1 (owner game-006: "Pinch sometimes zooms too far"): a form control is its own scroller with default touch-action:auto, so the gesture intersection stops AT the control and a pinch starting on one (the report note field, the code-entry inputs) never meets the lockdown — the browser may spend it as its own pinch-zoom and the page only gets a pointercancel. pan-y keeps the control's own text scrolling, excludes pinch-zoom, and lets the pinch detector read the gesture, like every other surface. */
 body{background:radial-gradient(120% 60% at 50% -5%, var(--glow) 0%, var(--bg) 55%) fixed, var(--bg);color:var(--ink);font-family:"Nunito",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
 button,[role="button"],input,select{min-height:44px}
 h1,h2,h3,.baloo{font-family:"Baloo 2","Nunito",sans-serif}
@@ -108,7 +111,7 @@ canvas#arena{display:block;width:100%;height:auto;touch-action:none;cursor:point
 }
 #banner{position:absolute;inset:auto 10px 12px 10px;text-align:center;background:rgba(10,16,32,.82);color:#fff;border-radius:12px;padding:10px;font-family:"Baloo 2",sans-serif;font-weight:800;font-size:1.05rem;opacity:0;pointer-events:none;transition:opacity .2s}
 #banner.show{opacity:1}
-#endOverlay{position:absolute;inset:0;display:none;place-items:center;background:rgba(8,12,24,.55);z-index:5;padding:16px;overflow-y:auto;touch-action:none} /* batch-5.1: the end screen scrolls when the keyboard shrinks the stage (item 10) and owns its gestures like the rest of the page (item 14) */
+#endOverlay{position:absolute;inset:0;display:none;place-items:center;background:rgba(8,12,24,.55);z-index:5;padding:16px;overflow-y:auto;touch-action:pan-y} /* batch-5.1.1: pan-y, not none — this overlay is its own scroller (item 10: it scrolls when the keyboard shrinks the stage) and touch-action:none killed that scroll outright. Pinch-zoom stays impossible (pan-y only) and the pinch detector still reads two-finger gestures here. (batch-5.1 had set none so the end screen would own its gestures like the rest of the page.) */
 #battleCol,#handRow{touch-action:none}
 #endOverlay.on{display:grid}
 #endOverlay .box{background:var(--panel);color:var(--ink);border-radius:18px;border:2px solid var(--gold);padding:20px 18px;text-align:center;max-width:340px;width:100%;box-shadow:0 18px 44px rgba(0,0,0,.4)}
@@ -1190,7 +1193,7 @@ function newMatch(enemyDeck){
     aiMem:{ plays:[], seen:{}, lastSpendT:-9, lastSpendAmt:0, lastDefKey:"", lastSupportT:-9 },
     aiMemP:{ plays:[], seen:{}, lastSpendT:-9, lastSpendAmt:0, lastDefKey:"", lastSupportT:-9 }, aiTimerP:1.2
   };
-  var eo = $("endOverlay"); if(eo) eo.classList.remove("on");
+  var eo = $("endOverlay"); if(eo) eo.classList.remove("on"); document.body.classList.remove("matchOver"); // batch-5.1.1: hand + elixir bar return for the new match
   $("battleCol").classList.add("on");
   document.body.classList.add("battling"); // mobile battle fit (CSS) keys off this
   camReset(); // every match starts at the full-field fit
@@ -3121,7 +3124,7 @@ function endMatch(winnerSide, reason){
     var rpBtn = $("reportBtn"); if(rpBtn){ rpBtn.disabled = false; rpBtn.textContent = "Bug or suggestion."; rpBtn.style.opacity = ".85"; }
     var rpPanel = $("reportPanel"); if(rpPanel) rpPanel.style.display = "none";
     var rpNote = $("reportNote"); if(rpNote) rpNote.value = "";
-    eo.classList.add("on");
+    eo.classList.add("on"); document.body.classList.add("matchOver"); // batch-5.1.1: the end screen shows no hand and no elixir bar (owner)
   }
   try{ if(conn && conn.open) conn.send({type:"end", winner:winnerSide}); }catch(e){}
 }
